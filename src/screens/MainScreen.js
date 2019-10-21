@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import {  View, Text, StyleSheet, Modal, ActivityIndicator, SafeAreaView, Image, Animated, PanResponder, TouchableOpacity, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { Alert, View, Text, StyleSheet, ActivityIndicator, SafeAreaView, Image, Animated, PanResponder, TouchableOpacity, Dimensions, Transf } from 'react-native';
 import {BASE_URL} from '../utilities/APIConfig'
 import { Easing } from 'react-native-reanimated';
 import MyStatusBar from '../components/MyStatusBar';
@@ -27,23 +27,31 @@ export default class MainScreen extends Component {
         currentUser : null,
         secondUser: null,
         isProgress: false,
-        swipe: 0
+        swipe: 0,
     };
+    this.listUser= []
   }
 
   
 
     componentDidMount(){
         this.getNewUser()
-        this.getNewUser2()
+        this.getFirstUser()
     }
 
-    nextUser = () =>{
-        this.setState({
-            currentUser : this.state.secondUser
-        })
+    nextUser = (isFavoriteUser) =>{
+        if(isFavoriteUser){
+            this.listUser.push(this.state.currentUser)
+        }
 
-        this.getNewUser2()
+        let that = this;
+        setTimeout(function(){
+            that.setState({
+                currentUser : that.state.secondUser,
+                listUser: that.state.listUser
+            })
+            that.getNewUser()
+        }, 150)
     }
 
     like=()=>{
@@ -54,7 +62,15 @@ export default class MainScreen extends Component {
         this.refs.currentCard.nope()
     }
 
-    getNewUser = async () => {
+    goToFavorite=()=>{
+        if(this.listUser.length > 0){
+            this.props.navigation.navigate('FavoriteScreen', {data:this.listUser});
+        } else {
+            Alert.alert("You must add favorite first")
+        }
+    }
+
+    getFirstUser = async () => {
         return fetch(BASE_URL+"0.4/?randomapi")
         .then((response) => response.json())
         .then((responseJson) => {
@@ -68,7 +84,7 @@ export default class MainScreen extends Component {
         });
     }
 
-    getNewUser2 = async () => {
+    getNewUser = async () => {
         return fetch(BASE_URL+"0.4/?randomapi")
         .then((response) => response.json())
         .then((responseJson) => {
@@ -89,23 +105,29 @@ export default class MainScreen extends Component {
       <SafeAreaView style={{flex: 1}}>
         <MyStatusBar/>
         <View style={style.Wrapper}>
+
             <View style={[{height: '15%', backgroundColor:'#F62459', justifyContent:'center', alignItems:'center'}]}>
                 <Image style={{width:180, height:60, marginTop:50}} source={require("../images/logo.png")}></Image>
             </View>
 
             <View style={[style.CenterPanel]}>
 
-                <MyCard user={this.state.secondUser} parent={this} />
-                <MyCard ref='currentCard' user={this.state.currentUser} parent={this} />
+                <MyCard user={this.state.secondUser} parent={this} isBehindCard={true} />
+                <MyCard ref='currentCard' user={this.state.currentUser} isBehindCard={false} parent={this} />
 
-                <View style={{width: '100%', height: 120, position:'absolute', bottom: 0, zIndex:99}}>
+                <View style={{width: '100%', height: 120, position:'absolute', bottom: 0, zIndex:99, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center'}}>
 
-                    <TouchableOpacity onPress={()=>{this.like()}}>
-                    <Image style={{width: 60, height: 60, position: 'absolute',top: 30, left: 80, zIndex: 999}} source={require('../images/ic_nope.png')}/>
+                    <TouchableOpacity style={{width: 60, height: 60}} onPress={()=>{this.nope()}}>
+                    <Image style={{width: 60, height: 60}} source={require('../images/ic_nope.png')}/>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={()=>{this.nope()}}>
-                    <Image style={{width: 60, height: 60, position: 'absolute',top: 30, right: 80, zIndex: 999}} source={require('../images/ic_like.png')}/>
+                    <TouchableOpacity style={{width: 60, height: 60, marginBottom: 50}} onPress={()=>{this.goToFavorite()}}>
+                         {/* <Image style={{width: this.state.listUser.length>0 ? 15 : 0, height: this.state.listUser.length>0 ? 15 : 0, position: 'absolute', zIndex: 5, right: 0, top: 0}} source={require('../images/ic_dot.png')}/> */}
+                        <Image style={{width: 60, height: 60, }} source={require('../images/ic_heart.png')}/>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={{width: 60, height: 60}} onPress={()=>{this.like()}}>
+                        <Image style={{width: 60, height: 60}} source={require('../images/ic_like.png')}/>
                     </TouchableOpacity>
 
                 </View>
@@ -133,6 +155,7 @@ class MyCard extends Component {
           currentTab: TabType.ABOUT,
       };
 
+      this.isRerendered = false
       this.currentUser = this.props.user
       this.animatedValue = new Animated.Value(0)
       this.position = new Animated.ValueXY()
@@ -157,7 +180,7 @@ class MyCard extends Component {
         extrapolate: 'clamp'
       })
 
-      this.dislikeOpacity = this.position.x.interpolate({
+      this.nopeOpacity = this.position.x.interpolate({
         inputRange: [-SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2],
         outputRange: [1, 0, 0],
         extrapolate: 'clamp'
@@ -167,32 +190,58 @@ class MyCard extends Component {
 
     componentWillMount(){
         this.PanResponder = PanResponder.create({
-
             onStartShouldSetPanResponder: (evt, gestureState) => true,
             onPanResponderMove: (evt, gestureState) => {
-      
-              this.position.setValue({ x: gestureState.dx, y: gestureState.dy })
+                if(this.props.isBehindCard){
+                   this.position.setValue( { x: 0, y: 0 } ); 
+                } else {
+                    this.position.setValue({ x: gestureState.dx, y: gestureState.dy })
+                }
             },
             onPanResponderRelease: (evt, gestureState) => {
 
-              if (gestureState.dx > 250) {
-                this.props.parent.nextUser();
-                Animated.spring(this.position, {
-                  toValue: { x: SCREEN_WIDTH + 100, y: gestureState.dy }
-                }).start()
-              }
-              else if (gestureState.dx < -250) {
-                this.props.parent.nextUser();
-
-                Animated.spring(this.position, {
-                  toValue: { x: -SCREEN_WIDTH - 100, y: gestureState.dy }
-                }).start()
-              }
-              else {
-                Animated.spring(this.position, {
-                  toValue: { x: 0, y: 0 },
-                  friction: 4
-                }).start()
+              if(!this.props.isBehindCard){
+                if (gestureState.dx > 250) {
+                    this.props.parent.nextUser(true);
+                    Animated.spring(this.position, {
+                      toValue: { x: SCREEN_WIDTH + 100, y: gestureState.dy }
+                    }).start(()=>{
+                        if(this.state.currentTab != TabType.ABOUT){
+                            this.setState({
+                                aboutTabSelected: true,
+                                addressTabSelected: false,
+                                birthDayTabSelected: false,
+                                accountTabSelected: false,
+                                phoneTabSelected: false,
+                                currentTab: TabType.ABOUT
+                            })
+                        }
+                    })
+                  }
+                  else if (gestureState.dx < -250) {
+                    this.props.parent.nextUser(false);
+    
+                    Animated.spring(this.position, {
+                      toValue: { x: -SCREEN_WIDTH - 100, y: gestureState.dy }
+                    }).start(()=>{
+                        if(this.state.currentTab != TabType.ABOUT){
+                            this.setState({
+                                aboutTabSelected: true,
+                                addressTabSelected: false,
+                                birthDayTabSelected: false,
+                                accountTabSelected: false,
+                                phoneTabSelected: false,
+                                currentTab: TabType.ABOUT
+                            })
+                        }
+                    })
+                  }
+                  else {
+                    Animated.spring(this.position, {
+                      toValue: { x: 0, y: 0 },
+                      friction: 4
+                    }).start()
+                  }
               }
             }
           })
@@ -202,21 +251,54 @@ class MyCard extends Component {
         this.animateVisible()
     }
 
+    componentDidUpdate(){
+        if(this.isRerendered){
+            let that = this
+            setTimeout(function(){that.isRerendered = false}, 700);
+        }
+    }
 
     like = ()=>{
-        Animated.spring(this.position, {
-            toValue: { x: SCREEN_WIDTH + 100, y: gestureState.dy }
-          }).start(()=>{
-              this.props.parent.nextUser()
-          })
+        if(!this.isRerendered){
+            this.isRerendered = true
+            this.props.parent.nextUser(true)
+            Animated.spring(this.position, {
+                toValue: { x: SCREEN_WIDTH + 100, y: 0 }
+              }).start(()=>{
+                if(this.state.currentTab != TabType.ABOUT){
+                    this.setState({
+                        aboutTabSelected: true,
+                        addressTabSelected: false,
+                        birthDayTabSelected: false,
+                        accountTabSelected: false,
+                        phoneTabSelected: false,
+                        currentTab: TabType.ABOUT
+                    })
+                }
+              })
+        }
+        
     }
 
     nope = ()=>{
-        Animated.spring(this.position, {
-            toValue: { x: -SCREEN_WIDTH - 100, y: gestureState.dy }
-          }).start(()=>{
-            this.props.parent.nextUser()
-        })
+        if(!this.isRerendered){
+            this.isRerendered = true
+            this.props.parent.nextUser(false)
+            Animated.spring(this.position, {
+                toValue: { x: -SCREEN_WIDTH - 100, y: 0 }
+            }).start(()=>{
+                if(this.state.currentTab != TabType.ABOUT){
+                    this.setState({
+                        aboutTabSelected: true,
+                        addressTabSelected: false,
+                        birthDayTabSelected: false,
+                        accountTabSelected: false,
+                        phoneTabSelected: false,
+                        currentTab: TabType.ABOUT
+                    })
+                }
+            })
+        }
     }
 
     setTabChecked = (tabType)=>{
@@ -326,7 +408,7 @@ class MyCard extends Component {
                     <Text style={{ color: 'green', fontSize: 25, fontWeight: '800', padding: 10 }}>LIKE</Text>
                     </Animated.View>
 
-                    <Animated.View style={{ opacity: this.dislikeOpacity, position: 'absolute', top: 5, right: 15, zIndex: 1000 }}>
+                    <Animated.View style={{ opacity: this.nopeOpacity, position: 'absolute', top: 5, right: 15, zIndex: 1000 }}>
                     <Text style={{ color: 'red', fontSize: 25, fontWeight: '800', padding: 10 }}>NOPE</Text>
                     </Animated.View>
       
@@ -402,33 +484,12 @@ class TabIcon extends Component {
 class TabDetail extends Component{
     constructor(props) {
         super(props);
-        this.animatedValue = new Animated.Value(0)
         this.state = {
         };
     }
 
     capitalize(str){
         return str.charAt(0).toUpperCase() + str.slice(1);
-    }
-
-    componentDidMount(){
-        this.animateVisible()
-    }
-
-    componentDidUpdate(){
-        // this.animateVisible()
-    }
-
-    animateVisible () {
-        this.animatedValue.setValue(0)
-        Animated.timing(
-          this.animatedValue,
-          {
-            toValue: 1,
-            duration: 500,
-            easing: Easing.linear
-          }
-        ).start()
     }
 
     _renderTab(){
@@ -464,14 +525,8 @@ class TabDetail extends Component{
             }
         }
 
-        const opacity = this.animatedValue.interpolate({
-            inputRange: [0 ,1],
-            outputRange: [0, 1],
-            extrapolate: 'clamp'
-        })
-
         return(
-            <Animated.View style={[{opacity: opacity},{flex: 1, alignItems:'center'}]}>
+            <Animated.View style={{flex: 1, alignItems:'center'}}>
                 <Text style={{fontSize:23}}>{text1}</Text>
                 <Text style={{fontSize:33, color:'#F62459'}}>{text2}</Text>
             </Animated.View>

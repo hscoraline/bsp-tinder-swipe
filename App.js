@@ -1,9 +1,10 @@
 
-import React, {Fragment} from 'react';
+import React from 'react';
 import {} from 'react-native';
 import {createAppContainer, SafeAreaView} from 'react-navigation'
-import {FluidNavigator, Transition} from 'react-navigation-fluid-transitions'
+import {FluidNavigator} from 'react-navigation-fluid-transitions'
 import MainScreen from './src/screens/MainScreen';
+import FavoriteScreen from './src/screens/FavoriteScreen';
 
 const App = () => {
   return (
@@ -16,6 +17,9 @@ const App = () => {
 const RootStack = FluidNavigator({
   MainScreen: {
     screen: MainScreen
+  },
+  FavoriteScreen: {
+    screen: FavoriteScreen
   }
 },
   {
